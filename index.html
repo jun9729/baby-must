@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BabyPick - AI 육아용품 연령별 추천</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #ec4899;
+  --primary-light: #f9a8d4;
+  --primary-dark: #db2777;
+  --accent: #8b5cf6;
+  --accent-light: #c4b5fd;
+  --bg: #fff9fb;
+  --bg-card: #ffffff;
+  --bg-hero: linear-gradient(135deg, #fdf2f8 0%, #fae8ff 50%, #ede9fe 100%);
+  --text: #1f2937;
+  --text-secondary: #6b7280;
+  --border: #f3e8ff;
+  --shadow: 0 4px 24px rgba(236,72,153,0.08);
+  --shadow-hover: 0 8px 32px rgba(236,72,153,0.16);
+  --radius: 16px;
+  --priority-must: #ef4444;
+  --priority-recommend: #f59e0b;
+  --priority-optional: #10b981;
+}
+[data-theme="dark"] {
+  --bg: #0f0a1a;
+  --bg-card: #1a1025;
+  --bg-hero: linear-gradient(135deg, #1a0a20 0%, #150a25 50%, #0f0a1a 100%);
+  --text: #f3e8ff;
+  --text-secondary: #a78bfa;
+  --border: #2d1f4e;
+  --shadow: 0 4px 24px rgba(139,92,246,0.1);
+  --shadow-hover: 0 8px 32px rgba(139,92,246,0.2);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Noto Sans KR', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  transition: background 0.3s, color 0.3s;
+}
+/* Dark mode toggle */
+.theme-toggle {
+  position: fixed; top: 20px; right: 20px; z-index: 1000;
+  background: var(--bg-card); border: 2px solid var(--border);
+  border-radius: 50%; width: 48px; height: 48px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 22px;
+  box-shadow: var(--shadow); transition: all 0.3s;
+}
+.theme-toggle:hover { transform: scale(1.1); box-shadow: var(--shadow-hover); }
+
+/* Hero */
+.hero {
+  background: var(--bg-hero);
+  padding: 80px 20px 60px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute; top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: radial-gradient(circle at 30% 50%, rgba(236,72,153,0.05) 0%, transparent 50%),
+              radial-gradient(circle at 70% 50%, rgba(139,92,246,0.05) 0%, transparent 50%);
+  animation: float 20s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(30px, -30px) rotate(5deg); }
+  66% { transform: translate(-20px, 20px) rotate(-3deg); }
+}
+.hero-content { position: relative; z-index: 1; max-width: 700px; margin: 0 auto; }
+.hero-emoji { font-size: 64px; margin-bottom: 16px; display: block; }
+.hero h1 {
+  font-size: 2.8rem; font-weight: 800;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; margin-bottom: 12px;
+}
+.hero p { font-size: 1.15rem; color: var(--text-secondary); margin-bottom: 32px; line-height: 1.7; }
+
+/* Input */
+.input-section {
+  max-width: 700px; margin: 0 auto; width: 100%;
+}
+.input-section textarea {
+  width: 100%; min-height: 100px; padding: 20px;
+  border: 2px solid var(--border); border-radius: var(--radius);
+  font-family: 'Noto Sans KR', sans-serif; font-size: 1rem;
+  background: var(--bg-card); color: var(--text);
+  resize: vertical; transition: border-color 0.3s;
+  line-height: 1.6;
+}
+.input-section textarea:focus {
+  outline: none; border-color: var(--primary);
+}
+.input-section textarea::placeholder { color: var(--text-secondary); opacity: 0.6; }
+
+.btn-recommend {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; margin-top: 16px; padding: 18px 32px;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  color: #fff; border: none; border-radius: var(--radius);
+  font-size: 1.15rem; font-weight: 700; cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+  transition: transform 0.2s, box-shadow 0.3s;
+  box-shadow: 0 4px 20px rgba(236,72,153,0.3);
+}
+.btn-recommend:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(236,72,153,0.4); }
+.btn-recommend:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+.btn-recommend .spinner {
+  width: 22px; height: 22px; border: 3px solid rgba(255,255,255,0.3);
+  border-top-color: #fff; border-radius: 50%;
+  animation: spin 0.8s linear infinite; display: none;
+}
+.btn-recommend.loading .spinner { display: block; }
+.btn-recommend.loading .btn-text { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Examples */
+.examples {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin-top: 16px; justify-content: center;
+}
+.example-chip {
+  padding: 8px 16px; border-radius: 20px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  font-size: 0.85rem; cursor: pointer; color: var(--text-secondary);
+  transition: all 0.2s; white-space: nowrap;
+}
+.example-chip:hover {
+  border-color: var(--primary); color: var(--primary);
+  background: rgba(236,72,153,0.05);
+}
+
+/* Ad banner */
+.ad-banner {
+  max-width: 900px; margin: 32px auto 0; text-align: center;
+}
+.ad-banner a { display: inline-block; border-radius: var(--radius); overflow: hidden; }
+.ad-banner img { max-width: 100%; height: auto; border-radius: var(--radius); }
+
+/* Results */
+.results-section {
+  max-width: 960px; margin: 0 auto; padding: 40px 20px 60px;
+  flex: 1;
+}
+.results-title {
+  font-size: 1.5rem; font-weight: 700; text-align: center;
+  margin-bottom: 28px; display: none;
+}
+.results-title span {
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.results-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+@media (max-width: 700px) {
+  .results-grid { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 2rem; }
+  .hero { padding: 60px 16px 40px; }
+}
+
+/* Card */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow);
+  transition: transform 0.2s, box-shadow 0.3s;
+  display: flex; flex-direction: column; gap: 12px;
+  animation: fadeUp 0.4s ease-out both;
+}
+.card:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.card-header { display: flex; align-items: flex-start; gap: 14px; }
+.card-emoji { font-size: 40px; flex-shrink: 0; line-height: 1; }
+.card-info { flex: 1; }
+.card-name { font-size: 1.15rem; font-weight: 700; margin-bottom: 6px; }
+.card-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.badge {
+  padding: 3px 10px; border-radius: 12px; font-size: 0.72rem; font-weight: 600;
+}
+.badge-category { background: rgba(139,92,246,0.1); color: var(--accent); }
+.badge-age { background: rgba(236,72,153,0.1); color: var(--primary); }
+.badge-priority-must { background: rgba(239,68,68,0.12); color: var(--priority-must); }
+.badge-priority-recommend { background: rgba(245,158,11,0.12); color: var(--priority-recommend); }
+.badge-priority-optional { background: rgba(16,185,129,0.12); color: var(--priority-optional); }
+.card-price {
+  font-size: 0.9rem; color: var(--text-secondary);
+  display: flex; align-items: center; gap: 6px;
+}
+.card-reason {
+  font-size: 0.92rem; line-height: 1.65; color: var(--text);
+}
+.card-tip {
+  font-size: 0.85rem; line-height: 1.6;
+  background: rgba(139,92,246,0.05);
+  border-left: 3px solid var(--accent-light);
+  padding: 10px 14px; border-radius: 0 8px 8px 0;
+  color: var(--text-secondary);
+}
+.btn-coupang {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 20px; border-radius: 12px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: #fff; text-decoration: none; font-size: 0.92rem; font-weight: 600;
+  transition: transform 0.2s, box-shadow 0.2s; margin-top: auto;
+  box-shadow: 0 2px 12px rgba(236,72,153,0.2);
+}
+.btn-coupang:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(236,72,153,0.35); }
+.btn-coupang svg { width: 18px; height: 18px; }
+
+/* Error */
+.error-msg {
+  text-align: center; padding: 24px; color: var(--priority-must);
+  background: rgba(239,68,68,0.06); border-radius: var(--radius);
+  display: none;
+}
+
+/* Footer */
+footer {
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+  padding: 28px 20px;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.8;
+}
+footer a { color: var(--primary); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+/* Scroll to top */
+.scroll-top {
+  position: fixed; bottom: 28px; right: 28px; z-index: 999;
+  width: 48px; height: 48px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  color: #fff; border: none; cursor: pointer;
+  display: none; align-items: center; justify-content: center;
+  font-size: 20px; box-shadow: 0 4px 16px rgba(236,72,153,0.3);
+  transition: transform 0.2s, opacity 0.3s;
+}
+.scroll-top:hover { transform: translateY(-3px); }
+.scroll-top.visible { display: flex; }
+
+/* Side banner */
+.side-banner {
+  position: fixed; top: 50%; right: 0; transform: translateY(-50%);
+  z-index: 100; display: none;
+}
+@media (min-width: 1300px) {
+  .side-banner { display: block; }
+}
+.side-banner a { display: block; }
+.side-banner img { border-radius: 8px 0 0 8px; }
+</style>
+</head>
+<body>
+<!-- Dark mode toggle -->
+<button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode">
+  <span id="themeIcon">&#127769;</span>
+</button>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-content">
+    <span class="hero-emoji">&#128118;&#127868;</span>
+    <h1>BabyPick</h1>
+    <p>AI가 아이 연령과 상황에 맞는 육아용품을 똑똑하게 추천해 드려요.<br>궁금한 점을 자유롭게 물어보세요!</p>
+    <div class="input-section">
+      <textarea id="userInput" placeholder="예: 6개월 아기한테 뭐가 필요해?&#10;돌잔치 준비물 추천해줘&#10;3살 아이 장난감 뭐가 좋을까?"></textarea>
+      <button class="btn-recommend" id="btnRecommend" onclick="getRecommendations()">
+        <div class="spinner"></div>
+        <span class="btn-text">&#10024; AI 용품 추천 받기</span>
+      </button>
+      <div class="examples">
+        <span class="example-chip" onclick="setExample(this)">6개월 아기 필수 용품</span>
+        <span class="example-chip" onclick="setExample(this)">돌잔치 준비물</span>
+        <span class="example-chip" onclick="setExample(this)">어린이집 입학 준비</span>
+        <span class="example-chip" onclick="setExample(this)">3살 아이 장난감 추천</span>
+      </div>
+    </div>
+    <!-- Ad banner -->
+    <div class="ad-banner">
+      <a href="https://link.coupang.com/a/cmC0lD" target="_blank" rel="noopener noreferrer">
+        <img src="https://ads-partners.coupang.com/banners/845498?subId=babypick&traceId=V0-301-bdd51e49c7f89142-I845498&channel=user" alt="Coupang" loading="lazy">
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Results -->
+<section class="results-section">
+  <h2 class="results-title" id="resultsTitle"><span>&#127873; AI 추천 결과</span></h2>
+  <div class="error-msg" id="errorMsg"></div>
+  <div class="results-grid" id="resultsGrid"></div>
+</section>
+
+<!-- Side banner -->
+<div class="side-banner">
+  <a href="https://link.coupang.com/a/cmC0lD" target="_blank" rel="noopener noreferrer">
+    <img src="https://ads-partners.coupang.com/banners/845498?subId=babypick_side&traceId=V0-301-bdd51e49c7f89142-I845498&channel=user" alt="Coupang" loading="lazy" width="120">
+  </a>
+</div>
+
+<!-- Footer -->
+<footer>
+  <strong>BabyPick</strong> &mdash; AI 육아용품 추천 서비스<br>
+  이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.<br>
+  <a href="https://www.coupang.com" target="_blank" rel="noopener noreferrer">쿠팡</a>에서 다양한 육아용품을 만나보세요.
+</footer>
+
+<!-- Scroll to top -->
+<button class="scroll-top" id="scrollTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">&#8679;</button>
+
+<script>
+// === API Key (obfuscated) ===
+const _EK = 'LawFinder2026!@#';
+function _d(e){const d=atob(e);let r='';for(let i=0;i<d.length;i++)r+=String.fromCharCode(d.charCodeAt(i)^_EK.charCodeAt(i%_EK.length));return r;}
+const _KEYS = { ai: _d('PwpaNhsBDkgIRFNFQEoVSjgRQiIQXwsgFHADfgJVdFV+KS4ALTQrLh1XAGsCVCtqDlIhBDMEKhEwYXt4UxkFUQALPwIOLzs3RlRRU05pFmYrCyN1KwIGDjR4Y2VnGBBIeQtCBw4HISQqY3FCWUh2YhZYIApRBBcwPmpyWFtoLnwWVCI2LwFRCTNDdntVdHkVHBEoMFpYJlc3VkJjUE83Ty4xAAc=') };
+
+// === Theme ===
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  document.documentElement.setAttribute('data-theme', isDark ? '' : 'dark');
+  document.getElementById('themeIcon').innerHTML = isDark ? '&#127769;' : '&#9728;&#65039;';
+  localStorage.setItem('babypick-theme', isDark ? 'light' : 'dark');
+}
+(function(){
+  const saved = localStorage.getItem('babypick-theme');
+  if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.getElementById('themeIcon').innerHTML = '&#9728;&#65039;';
+  }
+})();
+
+// === Scroll to top ===
+window.addEventListener('scroll', () => {
+  document.getElementById('scrollTop').classList.toggle('visible', window.scrollY > 400);
+});
+
+// === Example chips ===
+function setExample(el) {
+  document.getElementById('userInput').value = el.textContent;
+  document.getElementById('userInput').focus();
+}
+
+// === Clean JSON from AI response ===
+function cleanJson(text) {
+  let s = text.trim();
+  const fence = s.indexOf('```');
+  if (fence !== -1) {
+    s = s.replace(/```(?:json)?\s*/g, '').replace(/```/g, '');
+  }
+  s = s.trim();
+  const start = s.indexOf('[');
+  const end = s.lastIndexOf(']');
+  if (start !== -1 && end !== -1) {
+    s = s.substring(start, end + 1);
+  }
+  return JSON.parse(s);
+}
+
+// === Coupang link ===
+function coupangUrl(searchQuery) {
+  return `https://www.coupang.com/np/search?q=${encodeURIComponent(searchQuery)}&channel=user&src=1032001&spec=10305010&addtag=400&ctag=babypick&lptag=AF7220529`;
+}
+
+// === Priority badge ===
+function priorityBadge(p) {
+  const map = {
+    '필수': 'badge-priority-must',
+    '추천': 'badge-priority-recommend',
+    '선택': 'badge-priority-optional'
+  };
+  return `<span class="badge ${map[p] || 'badge-priority-recommend'}">${p}</span>`;
+}
+
+// === Render cards ===
+function renderCards(items) {
+  const grid = document.getElementById('resultsGrid');
+  grid.innerHTML = '';
+  items.forEach((item, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.animationDelay = `${i * 0.08}s`;
+    card.innerHTML = `
+      <div class="card-header">
+        <div class="card-emoji">${item.emoji || '&#128230;'}</div>
+        <div class="card-info">
+          <div class="card-name">${item.name}</div>
+          <div class="card-badges">
+            <span class="badge badge-category">${item.category}</span>
+            <span class="badge badge-age">${item.ageRange}</span>
+            ${priorityBadge(item.priority)}
+          </div>
+        </div>
+      </div>
+      <div class="card-price">&#128176; ${item.price}</div>
+      <div class="card-reason">${item.reason}</div>
+      <div class="card-tip">&#128161; <strong>TIP</strong> &mdash; ${item.tip}</div>
+      <a class="btn-coupang" href="${coupangUrl(item.searchQuery)}" target="_blank" rel="noopener noreferrer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+        쿠팡에서 구매
+      </a>
+    `;
+    grid.appendChild(card);
+  });
+  document.getElementById('resultsTitle').style.display = 'block';
+  setTimeout(() => {
+    document.getElementById('resultsTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 200);
+}
+
+// === AI request ===
+async function getRecommendations() {
+  const input = document.getElementById('userInput').value.trim();
+  if (!input) { document.getElementById('userInput').focus(); return; }
+
+  const btn = document.getElementById('btnRecommend');
+  const errEl = document.getElementById('errorMsg');
+  btn.classList.add('loading');
+  btn.disabled = true;
+  errEl.style.display = 'none';
+  document.getElementById('resultsGrid').innerHTML = '';
+  document.getElementById('resultsTitle').style.display = 'none';
+
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${_KEYS.ai}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        temperature: 0.6,
+        messages: [
+          {
+            role: 'system',
+            content: '당신은 육아 전문가입니다. 아이의 연령이나 상황에 맞는 육아용품을 6~8개 추천해주세요. 반드시 아래 JSON 배열 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력하세요.\n[{"name":"용품명","category":"카테고리","ageRange":"적정연령","price":"가격대","reason":"추천이유","tip":"사용팁","emoji":"이모지","priority":"필수/추천/선택","searchQuery":"쿠팡검색어"}]'
+          },
+          { role: 'user', content: input }
+        ]
+      })
+    });
+
+    if (!res.ok) throw new Error(`API 오류 (${res.status})`);
+    const data = await res.json();
+    const content = data.choices[0].message.content;
+    const items = cleanJson(content);
+    renderCards(items);
+  } catch (err) {
+    errEl.textContent = '추천을 가져오는 중 오류가 발생했습니다: ' + err.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+}
+
+// Enter key
+document.getElementById('userInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    getRecommendations();
+  }
+});
+</script>
+</body>
+</html>
