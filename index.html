@@ -259,7 +259,7 @@ body {
   padding: 32px 20px 60px;
   flex: 1; width: 100%;
 }
-.main-content { flex: 1; min-width: 0; }
+.main-content { flex: 1; min-width: 0; content-visibility: auto; contain-intrinsic-size: auto 800px; }
 .side-col {
   width: 200px; flex-shrink: 0;
   display: none;
@@ -549,6 +549,9 @@ footer a:hover { text-decoration: underline; }
   .card-emoji { font-size: 40px; }
   .faq-section { padding: 0 14px; }
 }
+
+/* ===== Focus Visible ===== */
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--primary);outline-offset:2px;}
 @media (min-width: 769px) and (max-width: 1079px) {
   .results-grid, .skeleton-grid { grid-template-columns: repeat(2, 1fr); }
 }
@@ -570,7 +573,7 @@ footer a:hover { text-decoration: underline; }
       <span>💜</span>
       <span id="wishlistCount" style="position:absolute;top:-4px;right:-4px;background:var(--primary);color:#fff;font-size:0.6rem;font-weight:700;width:18px;height:18px;border-radius:50%;display:none;align-items:center;justify-content:center;"></span>
     </button>
-    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode">
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="다크모드 전환" aria-pressed="false">
       <span id="themeIcon">&#127769;</span>
     </button>
   </div>
@@ -636,11 +639,11 @@ footer a:hover { text-decoration: underline; }
     </div>
 
     <!-- Filter Tabs -->
-    <div class="filter-tabs" id="filterTabs">
-      <button class="filter-tab active" data-filter="all" onclick="filterCards('all', this)">&#128220; 전체</button>
-      <button class="filter-tab" data-filter="필수" onclick="filterCards('필수', this)">&#128308; 필수</button>
-      <button class="filter-tab" data-filter="추천" onclick="filterCards('추천', this)">&#128309; 추천</button>
-      <button class="filter-tab" data-filter="선택" onclick="filterCards('선택', this)">&#9898; 선택</button>
+    <div class="filter-tabs" id="filterTabs" role="tablist" aria-label="우선순위 필터">
+      <button class="filter-tab active" data-filter="all" role="tab" aria-selected="true" onclick="filterCards('all', this)">&#128220; 전체</button>
+      <button class="filter-tab" data-filter="필수" role="tab" aria-selected="false" onclick="filterCards('필수', this)">&#128308; 필수</button>
+      <button class="filter-tab" data-filter="추천" role="tab" aria-selected="false" onclick="filterCards('추천', this)">&#128309; 추천</button>
+      <button class="filter-tab" data-filter="선택" role="tab" aria-selected="false" onclick="filterCards('선택', this)">&#9898; 선택</button>
     </div>
 
     <!-- Results -->
@@ -656,14 +659,14 @@ footer a:hover { text-decoration: underline; }
     </div>
 
     <!-- Wishlist View -->
-    <div class="wishlist-view" id="wishlistView">
+    <div class="wishlist-view" id="wishlistView" role="dialog" aria-modal="true" aria-label="위시리스트">
       <h3>💜 위시리스트 <span style="font-size:0.82rem;font-weight:400;color:var(--text-muted);" id="wishlistTotal"></span></h3>
       <div id="wishlistItems"></div>
       <div id="wishlistEmpty" style="text-align:center;padding:16px;color:var(--text-muted);font-size:0.9rem;">위시리스트가 비어 있습니다.</div>
     </div>
 
     <!-- Results Grid -->
-    <div class="results-grid" id="resultsGrid"></div>
+    <div class="results-grid" id="resultsGrid" aria-live="polite" aria-label="추천 결과"></div>
 
     <!-- Mid Ad removed for cleaner UX -->
 
@@ -716,7 +719,7 @@ footer a:hover { text-decoration: underline; }
 </footer>
 
 <!-- Scroll to Top -->
-<button class="scroll-top" id="scrollTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">&#8679;</button>
+<button class="scroll-top" id="scrollTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="맨 위로 이동">&#8679;</button>
 
 <script>
 // ===== API Key (obfuscated) =====
@@ -726,20 +729,22 @@ const _KEYS = { ai: _d('PwpaNhsBDkgIRFNFQEoVSjgRQiIQXwsgFHADfgJVdFV+KS4ALTQrLh1X
 
 // ===== State =====
 let allItems = [];
-let searchCount = parseInt(localStorage.getItem('babypick-search-count') || '0');
+let searchCount; try { searchCount = parseInt(localStorage.getItem('babypick-search-count') || '0'); } catch(e) { searchCount = 0; }
 
 // ===== Theme =====
 function toggleTheme() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   document.documentElement.setAttribute('data-theme', isDark ? '' : 'dark');
   document.getElementById('themeIcon').innerHTML = isDark ? '&#127769;' : '&#9728;&#65039;';
-  localStorage.setItem('babypick-theme', isDark ? 'light' : 'dark');
+  document.querySelector('[aria-label="다크모드 전환"]').setAttribute('aria-pressed', isDark ? 'false' : 'true');
+  try { localStorage.setItem('babypick-theme', isDark ? 'light' : 'dark'); } catch(e) {}
 }
 (function(){
-  const saved = localStorage.getItem('babypick-theme');
+  try { var saved = localStorage.getItem('babypick-theme'); } catch(e) { var saved = null; }
   if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     document.documentElement.setAttribute('data-theme', 'dark');
     document.getElementById('themeIcon').innerHTML = '&#9728;&#65039;';
+    document.querySelector('[aria-label="다크모드 전환"]').setAttribute('aria-pressed', 'true');
   }
 })();
 
@@ -769,11 +774,11 @@ function saveHistory(query) {
   let h = getHistory().filter(q => q !== query);
   h.unshift(query);
   if (h.length > 8) h = h.slice(0, 8);
-  localStorage.setItem('babypick-history', JSON.stringify(h));
+  try { localStorage.setItem('babypick-history', JSON.stringify(h)); } catch(e) {}
   renderHistory();
 }
 function clearHistory() {
-  localStorage.removeItem('babypick-history');
+  try { localStorage.removeItem('babypick-history'); } catch(e) {}
   renderHistory();
 }
 function renderHistory() {
@@ -798,7 +803,8 @@ function toggleFaq(item) {
 
 // ===== Clean JSON from AI response =====
 function cleanJson(text) {
-  let s = text.trim();
+  if (text == null) return [];
+  let s = String(text).trim();
   // 중첩 코드블록 처리
   s = s.replace(/```(?:json)?\s*/gi, '').replace(/\s*```/gi, '');
   s = s.trim();
@@ -845,8 +851,9 @@ function priorityBadge(p) {
 
 // ===== Filter =====
 function filterCards(priority, tabEl) {
-  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.filter-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
   tabEl.classList.add('active');
+  tabEl.setAttribute('aria-selected', 'true');
   const cards = document.querySelectorAll('.card');
   cards.forEach(card => {
     if (priority === 'all') {
@@ -914,7 +921,7 @@ function renderCards(items) {
 
   // Update counter
   searchCount += items.length;
-  localStorage.setItem('babypick-search-count', searchCount);
+  try { localStorage.setItem('babypick-search-count', searchCount); } catch(e) {}
   document.getElementById('counterNum').textContent = searchCount;
   document.getElementById('searchCounter').style.display = 'block';
 
@@ -977,7 +984,10 @@ async function getRecommendations() {
   const maxRetries = 1;
 
   async function attemptFetch() {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      signal: controller.signal,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -994,6 +1004,7 @@ async function getRecommendations() {
       })
     });
 
+    clearTimeout(timeoutId);
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       throw { message: classifyError(errData.error || {}, res.status), status: res.status };
@@ -1075,7 +1086,7 @@ function toggleWishlist(btn, name, emoji) {
     btn.innerHTML = '🤍 위시리스트';
     showToast('위시리스트에서 제거했습니다.');
   }
-  localStorage.setItem('babypick-wishlist', JSON.stringify(wl));
+  try { localStorage.setItem('babypick-wishlist', JSON.stringify(wl)); } catch(e) {}
   updateWishlistCount();
 }
 function updateWishlistCount() {
@@ -1117,7 +1128,7 @@ function removeFromWishlist(idx) {
   let wl = getWishlist();
   const name = wl[idx]?.name;
   wl.splice(idx, 1);
-  localStorage.setItem('babypick-wishlist', JSON.stringify(wl));
+  try { localStorage.setItem('babypick-wishlist', JSON.stringify(wl)); } catch(e) {}
   updateWishlistCount();
   renderWishlistView();
   // Update card button if visible
