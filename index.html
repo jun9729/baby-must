@@ -493,6 +493,47 @@ footer a:hover { text-decoration: underline; }
 .bottom-ad a { display: inline-block; border-radius: var(--radius-sm); overflow: hidden; }
 .bottom-ad img { max-width: 100%; height: auto; border-radius: var(--radius-sm); }
 
+/* ===== Wishlist Button ===== */
+.wishlist-btn{
+  display:inline-flex;align-items:center;gap:5px;
+  background:none;border:1.5px solid var(--border);
+  border-radius:12px;padding:9px 16px;font-size:0.82rem;font-weight:600;
+  color:var(--text-secondary);cursor:pointer;transition:all 0.2s;
+  font-family:'Noto Sans KR',sans-serif;
+}
+.wishlist-btn:hover{border-color:var(--accent);color:var(--accent);}
+.wishlist-btn.added{border-color:var(--accent);color:var(--accent);background:rgba(139,92,246,0.08);}
+.popular-badge{
+  display:inline-flex;align-items:center;gap:3px;
+  background:linear-gradient(135deg,rgba(245,158,11,0.12),rgba(236,72,153,0.12));
+  color:#d97706;font-size:0.7rem;font-weight:700;
+  padding:3px 10px;border-radius:12px;border:1px solid rgba(245,158,11,0.25);
+}
+
+/* ===== Wishlist View ===== */
+.wishlist-view{
+  display:none;background:var(--bg-card);border:1px solid var(--border);
+  border-radius:var(--radius);padding:24px;margin-bottom:24px;box-shadow:var(--shadow);
+}
+.wishlist-view.visible{display:block;}
+.wishlist-view h3{font-size:1.1rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.wishlist-item{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:10px 0;border-bottom:1px solid var(--border);font-size:0.9rem;
+}
+.wishlist-item:last-child{border-bottom:none;}
+.wishlist-remove{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;transition:color 0.2s;}
+.wishlist-remove:hover{color:var(--priority-must);}
+
+/* ===== Toast ===== */
+.toast{
+  position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:#1f2937;color:#fff;padding:12px 28px;border-radius:var(--radius-sm);
+  font-size:0.88rem;z-index:10000;box-shadow:0 8px 30px rgba(0,0,0,0.25);
+  opacity:0;transition:all 0.3s;pointer-events:none;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
+
 /* ===== Responsive ===== */
 @media (max-width: 768px) {
   .hero { padding: 48px 16px 36px; }
@@ -525,6 +566,10 @@ footer a:hover { text-decoration: underline; }
     <span class="nav-title">BabyPick</span>
   </a>
   <div class="nav-actions">
+    <button class="theme-toggle" onclick="toggleWishlistView()" aria-label="위시리스트 보기" title="위시리스트" style="position:relative;">
+      <span>💜</span>
+      <span id="wishlistCount" style="position:absolute;top:-4px;right:-4px;background:var(--primary);color:#fff;font-size:0.6rem;font-weight:700;width:18px;height:18px;border-radius:50%;display:none;align-items:center;justify-content:center;"></span>
+    </button>
     <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode">
       <span id="themeIcon">&#127769;</span>
     </button>
@@ -608,6 +653,13 @@ footer a:hover { text-decoration: underline; }
       <div class="skeleton-card"><div class="skeleton-header"><div class="skeleton-line h40"></div><div style="flex:1"><div class="skeleton-line w60"></div><div class="skeleton-line w40" style="margin-top:8px;height:12px"></div></div></div><div class="skeleton-line w40" style="height:12px"></div><div class="skeleton-line w100"></div><div class="skeleton-line w80"></div><div class="skeleton-line w60" style="height:40px;margin-top:4px"></div></div>
       <div class="skeleton-card"><div class="skeleton-header"><div class="skeleton-line h40"></div><div style="flex:1"><div class="skeleton-line w60"></div><div class="skeleton-line w40" style="margin-top:8px;height:12px"></div></div></div><div class="skeleton-line w40" style="height:12px"></div><div class="skeleton-line w100"></div><div class="skeleton-line w80"></div><div class="skeleton-line w60" style="height:40px;margin-top:4px"></div></div>
       <div class="skeleton-card"><div class="skeleton-header"><div class="skeleton-line h40"></div><div style="flex:1"><div class="skeleton-line w60"></div><div class="skeleton-line w40" style="margin-top:8px;height:12px"></div></div></div><div class="skeleton-line w40" style="height:12px"></div><div class="skeleton-line w100"></div><div class="skeleton-line w80"></div><div class="skeleton-line w60" style="height:40px;margin-top:4px"></div></div>
+    </div>
+
+    <!-- Wishlist View -->
+    <div class="wishlist-view" id="wishlistView">
+      <h3>💜 위시리스트 <span style="font-size:0.82rem;font-weight:400;color:var(--text-muted);" id="wishlistTotal"></span></h3>
+      <div id="wishlistItems"></div>
+      <div id="wishlistEmpty" style="text-align:center;padding:16px;color:var(--text-muted);font-size:0.9rem;">위시리스트가 비어 있습니다.</div>
     </div>
 
     <!-- Results Grid -->
@@ -841,10 +893,16 @@ function renderCards(items) {
       <div class="card-tip">&#128161; <strong>TIP</strong> &mdash; ${item.tip}</div>
       ${item.checkPoint ? '<div style="font-size:0.82rem;line-height:1.6;background:rgba(245,158,11,0.06);border-left:3px solid #f59e0b;padding:8px 12px;border-radius:0 8px 8px 0;color:#92400e;">&#9989; <strong>구매 전 체크</strong> &mdash; ' + item.checkPoint + '</div>' : ''}
       ${item.alternative ? '<div style="font-size:0.82rem;color:var(--text-secondary);">&#128260; <strong>대안:</strong> ' + item.alternative + '</div>' : ''}
-      <a class="btn-coupang" href="${coupangUrl(item.searchQuery)}" target="_blank" rel="noopener noreferrer">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-        최저가 보기
-      </a>
+      ${item.priority === '필수' ? '<span class="popular-badge">🔥 다른 부모들도 많이 찾았어요</span>' : ''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a class="btn-coupang" href="${coupangUrl(item.searchQuery)}" target="_blank" rel="noopener noreferrer" style="flex:1;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          최저가 보기
+        </a>
+        <button class="wishlist-btn ${isInWishlist(item.name) ? 'added' : ''}" onclick="toggleWishlist(this, '${item.name.replace(/'/g, "\\'")}', '${(item.emoji || '📦').replace(/'/g, "\\'")}')">
+          ${isInWishlist(item.name) ? '💜 위시리스트 추가됨' : '🤍 위시리스트'}
+        </button>
+      </div>
     `;
     grid.appendChild(card);
   });
@@ -980,6 +1038,98 @@ document.getElementById('userInput').addEventListener('keydown', (e) => {
     getRecommendations();
   }
 });
+
+// ===== Toast =====
+(function(){
+  const t = document.createElement('div');
+  t.className = 'toast'; t.id = 'toast';
+  document.body.appendChild(t);
+})();
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ===== Wishlist =====
+function getWishlist() {
+  try { return JSON.parse(localStorage.getItem('babypick-wishlist') || '[]'); } catch { return []; }
+}
+function isInWishlist(name) {
+  return getWishlist().some(w => w.name === name);
+}
+function toggleWishlist(btn, name, emoji) {
+  let wl = getWishlist();
+  const idx = wl.findIndex(w => w.name === name);
+  if (idx === -1) {
+    wl.push({ name, emoji });
+    btn.classList.add('added');
+    btn.innerHTML = '💜 위시리스트 추가됨';
+    showToast('💜 "' + name + '" 위시리스트에 추가!');
+  } else {
+    wl.splice(idx, 1);
+    btn.classList.remove('added');
+    btn.innerHTML = '🤍 위시리스트';
+    showToast('위시리스트에서 제거했습니다.');
+  }
+  localStorage.setItem('babypick-wishlist', JSON.stringify(wl));
+  updateWishlistCount();
+}
+function updateWishlistCount() {
+  const wl = getWishlist();
+  const el = document.getElementById('wishlistCount');
+  if (wl.length > 0) {
+    el.textContent = wl.length;
+    el.style.display = 'flex';
+  } else {
+    el.style.display = 'none';
+  }
+}
+function toggleWishlistView() {
+  const view = document.getElementById('wishlistView');
+  const isVisible = view.classList.contains('visible');
+  view.classList.toggle('visible');
+  if (!isVisible) renderWishlistView();
+}
+function renderWishlistView() {
+  const wl = getWishlist();
+  const items = document.getElementById('wishlistItems');
+  const empty = document.getElementById('wishlistEmpty');
+  const total = document.getElementById('wishlistTotal');
+  total.textContent = '(' + wl.length + '개)';
+  if (wl.length === 0) {
+    items.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  items.innerHTML = wl.map((w, i) =>
+    `<div class="wishlist-item">
+      <span>${w.emoji} ${w.name}</span>
+      <button class="wishlist-remove" onclick="removeFromWishlist(${i})" title="제거">✕</button>
+    </div>`
+  ).join('');
+}
+function removeFromWishlist(idx) {
+  let wl = getWishlist();
+  const name = wl[idx]?.name;
+  wl.splice(idx, 1);
+  localStorage.setItem('babypick-wishlist', JSON.stringify(wl));
+  updateWishlistCount();
+  renderWishlistView();
+  // Update card button if visible
+  document.querySelectorAll('.wishlist-btn.added').forEach(btn => {
+    if (btn.onclick.toString().includes(name)) {
+      btn.classList.remove('added');
+      btn.innerHTML = '🤍 위시리스트';
+    }
+  });
+  showToast('위시리스트에서 제거했습니다.');
+}
+updateWishlistCount();
 </script>
 </body>
 </html>
