@@ -613,13 +613,7 @@ footer a:hover { text-decoration: underline; }
     <!-- Results Grid -->
     <div class="results-grid" id="resultsGrid"></div>
 
-    <!-- Mid Ad (inserted after results) -->
-    <div class="mid-ad" id="midAd" style="display:none;">
-      <span class="ad-label">AD</span>
-      <a href="https://link.coupang.com/a/cmC0lD" target="_blank" rel="noopener noreferrer">
-        <img src="https://ads-partners.coupang.com/banners/845498?subId=babypick&traceId=V0-301-bdd51e49c7f89142-I845498&channel=user" alt="Coupang" loading="lazy">
-      </a>
-    </div>
+    <!-- Mid Ad removed for cleaner UX -->
 
     <!-- FAQ -->
     <div class="faq-section">
@@ -648,12 +642,6 @@ footer a:hover { text-decoration: underline; }
           <img src="https://ads-partners.coupang.com/banners/845498?subId=babypick_side&traceId=V0-301-bdd51e49c7f89142-I845498&channel=user" alt="Coupang" loading="lazy" width="180">
         </a>
       </div>
-      <div class="side-ad-wrapper" style="position:relative; margin-top: 16px;">
-        <span class="ad-label">AD</span>
-        <a href="https://link.coupang.com/a/cmC0lD" target="_blank" rel="noopener noreferrer">
-          <img src="https://ads-partners.coupang.com/banners/845498?subId=babypick_side&traceId=V0-301-bdd51e49c7f89142-I845498&channel=user" alt="Coupang" loading="lazy" width="180">
-        </a>
-      </div>
     </div>
   </div>
 </div>
@@ -669,10 +657,9 @@ footer a:hover { text-decoration: underline; }
 <!-- ===== Sticky Footer ===== -->
 <footer>
   <strong>BabyPick</strong> &mdash; AI 육아용품 추천 서비스<br>
-  <a href="https://www.coupang.com" target="_blank" rel="noopener noreferrer">쿠팡</a>에서 다양한 육아용품을 만나보세요.
+  &copy; 2026 BabyPick. All rights reserved.
   <div class="footer-notice">
-    이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.<br>
-    &copy; 2026 BabyPick. All rights reserved.
+    <p style="font-size:0.62rem;color:var(--text-muted);opacity:0.7;margin-top:6px;">이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</p>
   </div>
 </footer>
 
@@ -812,6 +799,10 @@ function renderCards(items) {
     card.className = 'card';
     card.dataset.priority = item.priority;
     card.style.animationDelay = `${i * 0.07}s`;
+    if (item.priority === '필수') {
+      card.style.border = '2px solid var(--priority-must)';
+      card.style.boxShadow = '0 0 0 1px rgba(239,68,68,0.15), var(--shadow)';
+    }
     card.innerHTML = `
       <div class="card-header">
         <div class="card-emoji">${item.emoji || '&#128230;'}</div>
@@ -821,15 +812,18 @@ function renderCards(items) {
             <span class="badge badge-category">${item.category}</span>
             <span class="badge badge-age">${item.ageRange}</span>
             ${priorityBadge(item.priority)}
+            ${item.safetyCert ? '<span class="badge" style="background:rgba(5,150,105,0.12);color:#059669;">&#9989; ' + item.safetyCert + '</span>' : ''}
           </div>
         </div>
       </div>
       <div class="card-price">&#128176; ${item.price}</div>
       <div class="card-reason">${item.reason}</div>
+      ${item.safetyNote ? '<div style="font-size:0.82rem;line-height:1.6;background:rgba(239,68,68,0.05);border-left:3px solid #ef4444;padding:8px 12px;border-radius:0 8px 8px 0;color:#b91c1c;">&#9888;&#65039; <strong>안전</strong> &mdash; ' + item.safetyNote + '</div>' : ''}
       <div class="card-tip">&#128161; <strong>TIP</strong> &mdash; ${item.tip}</div>
+      ${item.alternative ? '<div style="font-size:0.82rem;color:var(--text-secondary);">&#128260; <strong>대안:</strong> ' + item.alternative + '</div>' : ''}
       <a class="btn-coupang" href="${coupangUrl(item.searchQuery)}" target="_blank" rel="noopener noreferrer">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-        쿠팡에서 구매
+        최저가 보기
       </a>
     `;
     grid.appendChild(card);
@@ -838,7 +832,7 @@ function renderCards(items) {
   // Show UI elements
   document.getElementById('resultsTitle').style.display = 'block';
   document.getElementById('filterTabs').classList.add('visible');
-  document.getElementById('midAd').style.display = 'block';
+  // midAd removed
 
   // Update counter
   searchCount += items.length;
@@ -868,7 +862,7 @@ async function getRecommendations() {
   document.getElementById('resultsGrid').innerHTML = '';
   document.getElementById('resultsTitle').style.display = 'none';
   document.getElementById('filterTabs').classList.remove('visible');
-  document.getElementById('midAd').style.display = 'none';
+  // midAd removed
 
   // Show skeleton
   document.getElementById('skeletonGrid').classList.add('visible');
@@ -889,7 +883,7 @@ async function getRecommendations() {
         messages: [
           {
             role: 'system',
-            content: '당신은 육아 전문가입니다. 아이의 연령이나 상황에 맞는 육아용품을 6~8개 추천해주세요. 반드시 아래 JSON 배열 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력하세요.\n[{"name":"용품명","category":"카테고리","ageRange":"적정연령","price":"가격대","reason":"추천이유","tip":"사용팁","emoji":"이모지","priority":"필수/추천/선택","searchQuery":"쿠팡검색어"}]'
+            content: '당신은 10년 이상 경력의 육아 전문가이자 아동 안전 전문가입니다. 아이의 연령이나 상황에 맞는 육아용품을 6~8개 추천해주세요.\n\n추천 시 반드시 포함할 내용:\n1. 각 용품의 안전 주의사항 (질식 위험, 소재 안전성, BPA-free 여부 등)\n2. 안전 인증 마크 정보 (KC인증, EN71, CPSIA 등 해당되는 것)\n3. 예산이 부담될 경우를 위한 대안 제품명\n4. 가격대는 구체적으로 (예: "2만원~5만원")\n5. 우선순위가 "필수"인 용품은 반드시 3개 이상 포함\n\n반드시 아래 JSON 배열 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력하세요.\n[{"name":"용품명","category":"카테고리","ageRange":"적정연령","price":"가격대(구체적)","reason":"추천이유(상세히)","tip":"사용팁","safetyNote":"안전 주의사항","safetyCert":"안전인증마크(KC인증 등)","alternative":"대안 제품명","emoji":"이모지","priority":"필수/추천/선택","searchQuery":"쿠팡검색어"}]'
           },
           { role: 'user', content: input }
         ]
