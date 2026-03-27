@@ -747,17 +747,33 @@ function toggleFaq(item) {
 // ===== Clean JSON from AI response =====
 function cleanJson(text) {
   let s = text.trim();
-  const fence = s.indexOf('```');
-  if (fence !== -1) {
-    s = s.replace(/```(?:json)?\s*/g, '').replace(/```/g, '');
-  }
+  // 중첩 코드블록 처리
+  s = s.replace(/```(?:json)?\s*/gi, '').replace(/\s*```/gi, '');
   s = s.trim();
+  // 앞뒤 불필요한 텍스트 제거
   const start = s.indexOf('[');
   const end = s.lastIndexOf(']');
   if (start !== -1 && end !== -1) {
     s = s.substring(start, end + 1);
+  } else {
+    // 객체 형태일 경우
+    const objStart = s.indexOf('{');
+    const objEnd = s.lastIndexOf('}');
+    if (objStart !== -1 && objEnd !== -1) {
+      s = s.substring(objStart, objEnd + 1);
+    }
   }
   return JSON.parse(s);
+}
+
+// ===== 에러 메시지 분류 =====
+function classifyError(err, status) {
+  if (!navigator.onLine) return '네트워크 연결이 끊어졌습니다. 인터넷 연결을 확인해주세요.';
+  if (status === 429) return 'API 요청이 너무 많습니다. 잠시 후 다시 시도해주세요. (Rate Limit)';
+  if (status === 401 || status === 403) return 'API 키가 유효하지 않습니다. 관리자에게 문의하세요.';
+  if (status === 500 || status === 502 || status === 503) return 'AI 서버에 일시적 문제가 발생했습니다. 잠시 후 다시 시도해주세요.';
+  if (err && err.message && err.message.includes('Failed to fetch')) return '네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.';
+  return '추천을 가져오는 중 오류가 발생했습니다: ' + (err?.message || '알 수 없는 오류');
 }
 
 // ===== Coupang link =====
@@ -819,7 +835,11 @@ function renderCards(items) {
       <div class="card-price">&#128176; ${item.price}</div>
       <div class="card-reason">${item.reason}</div>
       ${item.safetyNote ? '<div style="font-size:0.82rem;line-height:1.6;background:rgba(239,68,68,0.05);border-left:3px solid #ef4444;padding:8px 12px;border-radius:0 8px 8px 0;color:#b91c1c;">&#9888;&#65039; <strong>안전</strong> &mdash; ' + item.safetyNote + '</div>' : ''}
+      ${item.prosAndCons ? '<div style="font-size:0.82rem;line-height:1.6;background:rgba(59,130,246,0.05);border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 8px 8px 0;color:var(--text-secondary);">&#128483;&#65039; <strong>부모 후기</strong> &mdash; ' + item.prosAndCons + '</div>' : ''}
+      ${item.seasonTip ? '<div style="font-size:0.82rem;color:var(--text-secondary);">&#127782;&#65039; <strong>계절팁:</strong> ' + item.seasonTip + '</div>' : ''}
+      ${item.longevity ? '<div style="font-size:0.82rem;color:var(--text-secondary);">&#128200; <strong>성장 후:</strong> ' + item.longevity + '</div>' : ''}
       <div class="card-tip">&#128161; <strong>TIP</strong> &mdash; ${item.tip}</div>
+      ${item.checkPoint ? '<div style="font-size:0.82rem;line-height:1.6;background:rgba(245,158,11,0.06);border-left:3px solid #f59e0b;padding:8px 12px;border-radius:0 8px 8px 0;color:#92400e;">&#9989; <strong>구매 전 체크</strong> &mdash; ' + item.checkPoint + '</div>' : ''}
       ${item.alternative ? '<div style="font-size:0.82rem;color:var(--text-secondary);">&#128260; <strong>대안:</strong> ' + item.alternative + '</div>' : ''}
       <a class="btn-coupang" href="${coupangUrl(item.searchQuery)}" target="_blank" rel="noopener noreferrer">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
@@ -855,22 +875,50 @@ async function getRecommendations() {
   if (!input) { document.getElementById('userInput').focus(); return; }
 
   const btn = document.getElementById('btnRecommend');
+  const textarea = document.getElementById('userInput');
   const errEl = document.getElementById('errorMsg');
   btn.classList.add('loading');
   btn.disabled = true;
+  textarea.disabled = true;
   errEl.style.display = 'none';
   document.getElementById('resultsGrid').innerHTML = '';
   document.getElementById('resultsTitle').style.display = 'none';
   document.getElementById('filterTabs').classList.remove('visible');
-  // midAd removed
 
   // Show skeleton
   document.getElementById('skeletonGrid').classList.add('visible');
 
+  // 로딩 단계 표시
+  const btnText = btn.querySelector('.btn-text');
+  btnText.textContent = '1단계: AI가 연령 분석 중...';
+  btnText.style.display = 'block';
+  btn.querySelector('.spinner').style.display = 'inline-block';
+  setTimeout(() => { if (btn.disabled) btnText.textContent = '2단계: 용품 선별 중...'; }, 3000);
+  setTimeout(() => { if (btn.disabled) btnText.textContent = '3단계: 안전 정보 확인 중...'; }, 6000);
+
   // Save to history
   saveHistory(input);
 
-  try {
+  const systemPrompt = `당신은 10년 이상 경력의 육아 전문가이자 아동 안전 전문가입니다. 아이의 연령이나 상황에 맞는 육아용품을 6~8개 추천해주세요.
+
+추천 시 반드시 포함할 내용:
+1. 각 용품의 안전 주의사항 (질식 위험, 소재 안전성, BPA-free 여부 등)
+2. 안전 인증 마크 정보 (KC인증, EN71, CPSIA 등 해당되는 것)
+3. 예산이 부담될 경우를 위한 대안 제품명
+4. 가격대는 구체적으로 (예: "2만원~5만원")
+5. 우선순위가 "필수"인 용품은 반드시 3개 이상 포함
+6. 실제 부모 후기 기반 장단점을 각 용품마다 포함 (예: "장점: 세척이 편리함 / 단점: 크기가 커서 휴대 불편")
+7. 현재 계절별 주의사항 포함 (예: 여름에는 통기성, 겨울에는 보온성 등)
+8. 성장 후에도 사용 가능한지 정보 포함 (예: "24개월까지 사용 가능", "성장 후 의자로 전환 가능")
+9. "구매 전 체크포인트" 1~2가지 포함 (예: "아이 체중 확인 필수", "바닥재 미끄럼 방지 여부 확인")
+
+반드시 아래 JSON 배열 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력하세요.
+[{"name":"용품명","category":"카테고리","ageRange":"적정연령","price":"가격대(구체적)","reason":"추천이유(상세히)","tip":"사용팁","safetyNote":"안전 주의사항","safetyCert":"안전인증마크(KC인증 등)","alternative":"대안 제품명","emoji":"이모지","priority":"필수/추천/선택","searchQuery":"쿠팡검색어","prosAndCons":"장점과 단점 (실제 부모 후기 기반)","seasonTip":"계절별 주의사항","longevity":"성장 후 사용 가능 여부","checkPoint":"구매 전 체크포인트"}]`;
+
+  let retryCount = 0;
+  const maxRetries = 1;
+
+  async function attemptFetch() {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -880,28 +928,48 @@ async function getRecommendations() {
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         temperature: 0.6,
+        max_tokens: 2000,
         messages: [
-          {
-            role: 'system',
-            content: '당신은 10년 이상 경력의 육아 전문가이자 아동 안전 전문가입니다. 아이의 연령이나 상황에 맞는 육아용품을 6~8개 추천해주세요.\n\n추천 시 반드시 포함할 내용:\n1. 각 용품의 안전 주의사항 (질식 위험, 소재 안전성, BPA-free 여부 등)\n2. 안전 인증 마크 정보 (KC인증, EN71, CPSIA 등 해당되는 것)\n3. 예산이 부담될 경우를 위한 대안 제품명\n4. 가격대는 구체적으로 (예: "2만원~5만원")\n5. 우선순위가 "필수"인 용품은 반드시 3개 이상 포함\n\n반드시 아래 JSON 배열 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력하세요.\n[{"name":"용품명","category":"카테고리","ageRange":"적정연령","price":"가격대(구체적)","reason":"추천이유(상세히)","tip":"사용팁","safetyNote":"안전 주의사항","safetyCert":"안전인증마크(KC인증 등)","alternative":"대안 제품명","emoji":"이모지","priority":"필수/추천/선택","searchQuery":"쿠팡검색어"}]'
-          },
+          { role: 'system', content: systemPrompt },
           { role: 'user', content: input }
         ]
       })
     });
 
-    if (!res.ok) throw new Error(`API 오류 (${res.status})`);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw { message: classifyError(errData.error || {}, res.status), status: res.status };
+    }
     const data = await res.json();
     const content = data.choices[0].message.content;
-    const items = cleanJson(content);
+    return cleanJson(content);
+  }
+
+  try {
+    let items;
+    try {
+      items = await attemptFetch();
+    } catch (err) {
+      // JSON 파싱 실패 시 1회 재시도
+      if (err instanceof SyntaxError && retryCount < maxRetries) {
+        retryCount++;
+        btnText.textContent = '🔄 재시도 중...';
+        items = await attemptFetch();
+      } else {
+        throw err;
+      }
+    }
     renderCards(items);
   } catch (err) {
-    errEl.textContent = '추천을 가져오는 중 오류가 발생했습니다: ' + err.message;
+    errEl.textContent = err.message || classifyError(err, err.status);
     errEl.style.display = 'block';
   } finally {
     document.getElementById('skeletonGrid').classList.remove('visible');
     btn.classList.remove('loading');
     btn.disabled = false;
+    textarea.disabled = false;
+    btnText.textContent = '\u2728 AI 용품 추천 받기';
+    btn.querySelector('.spinner').style.display = 'none';
   }
 }
 
